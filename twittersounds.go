@@ -5,11 +5,16 @@ package twittersounds
 import (
 	"fmt"
 	"github.com/ChimeraCoder/anaconda"
+	"log"
+	"math"
+	"math/rand"
 	"os"
 	"time"
 )
 
-func Tweet(text string) error {
+const gutenburgBaseUrl string = "https://www.gutenberg.org"
+
+func Tweet(text string, hashtags []string) error {
 
 	var (
 		CONSUMER_KEY        = os.Getenv("CONSUMER_KEY")
@@ -21,9 +26,12 @@ func Tweet(text string) error {
 	anaconda.SetConsumerSecret(CONSUMER_SECRET)
 	api := anaconda.NewTwitterApi(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
 
+	for _, tag := range hashtags {
+		text = text + " " + tag
+	}
 	tweet, err := api.PostTweet(text, nil)
 
-	fmt.Printf("%+v", tweet)
+	fmt.Printf("tweet: %+v", tweet)
 
 	if err != nil {
 		return err
@@ -33,9 +41,46 @@ func Tweet(text string) error {
 }
 
 func generateText() string {
-	return "string"
+	book, err := FindBook()
+	if err != nil {
+		log.Printf("Error getting book data: %v\n", err)
+		return ""
+	}
+
+	title := book.Title
+	author := book.Subtitle
+	link := gutenburgBaseUrl + book.Href
+
+	return "\"" + title + "\"," + author + " " + link
 }
 
-func Initiate(timeToTweet time.Time, vary bool) {
+func Initiate(vary bool) interface{} {
+	var delayMins int = 40
+	var offsetMins int = 0
 
+	if vary == true {
+		seed := time.Now().UnixNano()
+		rng := rand.New(rand.NewSource(seed))
+		offsetMins = int(math.Floor(rng.NormFloat64()*float64(15) + 0.5))
+
+		// keep it within +/-40mins of scheduled time
+		if offsetMins < -40 {
+			offsetMins = -40
+		} else if offsetMins > 40 {
+			offsetMins = 40
+		}
+	}
+
+	delayMins = delayMins + offsetMins
+
+	tweetText := generateText()
+	// if tweetText is empty, there was an error so we'll wait until next time
+	if tweetText == "" {
+		log.Println("No tweet tweeted")
+		return nil
+	}
+
+	Tweet(tweetText, []string{"#projectgutenberg", "#randombook"})
+
+	return nil
 }

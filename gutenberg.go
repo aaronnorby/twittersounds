@@ -3,7 +3,9 @@ package twittersounds
 import (
 	"errors"
 	"golang.org/x/net/html"
+	"math/rand"
 	"net/http"
+	"time"
 )
 
 const gutenburgRandUrl = "https://www.gutenberg.org/ebooks/search/?sort_order=random"
@@ -14,33 +16,37 @@ type Book struct {
 	Href     string
 }
 
-func FindBooks() ([]Book, error) {
+func FindBook() (Book, error) {
 	resp, err := http.Get(gutenburgRandUrl)
 	if err != nil {
-		return nil, err
+		return Book{}, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, errors.New(resp.Status)
+		return Book{}, errors.New(resp.Status)
 	}
 
 	doc, err := html.Parse(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return nil, err
+		return Book{}, err
 	}
 
 	books := parseBookHtml(doc)
 
-	return books, nil
+	seed := time.Now().UnixNano()
+	rng := rand.New(rand.NewSource(seed))
+	index := rng.Intn(len(books))
+	book := books[index]
+
+	return book, nil
 }
 
 func parseBookHtml(n *html.Node) []Book {
 	var books []Book
 	bookLinks := getNodesWithTagAndClass(n, "li", "booklink", nil)
 
-	// actually, should just grab a random node at this point
 	for _, book := range bookLinks {
 		href := getAttrVal(book, "href")
 		title := getTextContentByClass(book, "title")
