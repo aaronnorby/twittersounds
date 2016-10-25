@@ -3,12 +3,12 @@
 package twittersounds
 
 import (
-	"fmt"
 	"github.com/ChimeraCoder/anaconda"
 	"log"
 	"math"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -31,7 +31,7 @@ func Tweet(text string, hashtags []string) error {
 	}
 	tweet, err := api.PostTweet(text, nil)
 
-	fmt.Printf("tweet: %+v", tweet)
+	log.Printf("tweeted: %+v", tweet)
 
 	if err != nil {
 		return err
@@ -54,9 +54,17 @@ func generateText() string {
 	return "\"" + title + "\"," + author + " " + link
 }
 
-func Initiate(vary bool) interface{} {
+func Initiate(immediate, vary bool) interface{} {
+	if immediate && vary {
+		return "Error: cannot have immediate execution and variable delay"
+	}
+
 	var delayMins int = 40
 	var offsetMins int = 0
+
+	if immediate == true {
+		delayMins = 0
+	}
 
 	if vary == true {
 		seed := time.Now().UnixNano()
@@ -80,7 +88,89 @@ func Initiate(vary bool) interface{} {
 		return nil
 	}
 
-	Tweet(tweetText, []string{"#projectgutenberg", "#randombook"})
+	delay, _ := time.ParseDuration(strconv.Itoa(delayMins) + "m")
+	log.Println("Tweet delayed for %v mins from now.", delayMins)
+	timer := time.NewTimer(delay)
+	<-timer.C
+	timer.Stop()
+
+	err := Tweet(tweetText, []string{"#ProjectGutenberg", "#RandomBook"})
+	if err != nil {
+		return err
+	}
 
 	return nil
+}
+
+// timeToTweet is hour of day to send tweet, interval [0,23]. Assumed to be "America/Los_Angeles"
+// timezone
+func Schedule(timeToTweet, daysBetweenTweets int) {
+	tz, _ := time.LoadLocation("America/Los_Angeles")
+	hoursBetweenTweets, _ := time.ParseDuration(strconv.Itoa(daysBetweenTweets*24) + "h")
+
+	timeTilNextTweet := getTimeTilNextTweet(timeToTweet, hoursBetweenTweets, tz)
+	timer := time.NewTimer(timeTilNextTweet)
+
+	log.Printf("Scheduling tweet for %v from now", timeTilNextTweet)
+
+	maxRetries := 3
+	for {
+		<-timer.C
+		err := Initiate(false, true)
+		if err != nil {
+			log.Printf("Error in Initiate: %v", err)
+
+			for retries := 0; retries < maxRetries; retries++ {
+				log.Println("Retying Initiate")
+				err := Initiate(true, false)
+				if err == nil {
+					break
+				}
+
+				if err != nil && retries == maxRetries-1 {
+					log.Printf("Max retries exceeded. Stopping with error: %v", err)
+					return
+				}
+			}
+		}
+		timeTilNextTweet = getTimeTilNextTweet(timeToTweet, hoursBetweenTweets, tz)
+		log.Printf("Tweet scheduled for %v from now", timeTilNextTweet)
+		if !timer.Stop() {
+			<-timer.C
+		}
+		timer.Reset(timeTilNextTweet)
+	}
+}
+
+type Scheduler struct {
+	TweetTime int
+	Hours     time.Duration
+	Tz        *time.Location
+	Timer     time.Timer
+	C         chan time.Time
+}
+
+func NewScheduler(timeToTweet int, hoursBetweenTweets time.Duration, tz *time.Location) {
+
+}
+
+func (s *Scheduler) WaitForNext() {
+
+}
+
+func getTimeTilNextTweet(timeToTweet int, hoursBetweenTweets time.Duration, tz *time.Location) time.Duration {
+	var timeTilNextTweet time.Duration
+	nextTweetTime := timeTodayFromHour(timeToTweet, tz)
+
+	if time.Now().After(nextTweetTime) {
+		nextTweetTime = nextTweetTime.Add(hoursBetweenTweets)
+	}
+
+	timeTilNextTweet = nextTweetTime.Sub(time.Now())
+
+	return timeTilNextTweet
+}
+
+func timeTodayFromHour(hour int, zone *time.Location) time.Time {
+	return time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), hour, 0, 0, 0, zone)
 }

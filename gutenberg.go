@@ -48,6 +48,7 @@ func parseBookHtml(n *html.Node) []Book {
 	bookLinks := getNodesWithTagAndClass(n, "li", "booklink", nil)
 
 	for _, book := range bookLinks {
+		// TODO these three could be concurrently
 		href := getAttrVal(book, "href")
 		title := getTextContentByClass(book, "title")
 		subtitle := getTextContentByClass(book, "subtitle")
