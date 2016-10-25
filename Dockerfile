@@ -7,3 +7,5 @@ RUN go get github.com/ChimeraCoder/anaconda && go get golang.org/x/net/html
 RUN go install github.com/aaronnorby/twittersounds/tweetout
 
 ENTRYPOINT /go/bin/tweetout
+
+EXPOSE 3000
