@@ -89,7 +89,7 @@ func Initiate(immediate, vary bool) interface{} {
 	}
 
 	delay, _ := time.ParseDuration(strconv.Itoa(delayMins) + "m")
-	log.Println("Tweet delayed for %v mins from now.", delayMins)
+	log.Printf("Tweet delayed for %v mins from now.", delayMins)
 	timer := time.NewTimer(delay)
 	<-timer.C
 	timer.Stop()
@@ -135,9 +135,7 @@ func Schedule(timeToTweet, daysBetweenTweets int) {
 		}
 		timeTilNextTweet = getTimeTilNextTweet(timeToTweet, hoursBetweenTweets, tz)
 		log.Printf("Tweet scheduled for %v from now", timeTilNextTweet)
-		if !timer.Stop() {
-			<-timer.C
-		}
+
 		timer.Reset(timeTilNextTweet)
 	}
 }
@@ -148,14 +146,6 @@ type Scheduler struct {
 	Tz        *time.Location
 	Timer     time.Timer
 	C         chan time.Time
-}
-
-func NewScheduler(timeToTweet int, hoursBetweenTweets time.Duration, tz *time.Location) {
-
-}
-
-func (s *Scheduler) WaitForNext() {
-
 }
 
 func getTimeTilNextTweet(timeToTweet int, hoursBetweenTweets time.Duration, tz *time.Location) time.Duration {
